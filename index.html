@@ -305,22 +305,15 @@
     border: 1px solid #2a2a2a;
     border-radius: 12px;
     overflow: hidden;
-    cursor: pointer;
     transition: transform 0.2s, border-color 0.2s;
   }
   .card:hover {
     transform: translateY(-4px);
     border-color: var(--dorado);
   }
-  .card img {
-    width: 100%;
-    height: 220px;
-    object-fit: cover;
-    display: block;
-    background: #000;
-  }
   .card-info {
     padding: 14px 16px;
+    cursor: pointer;
   }
   .card-info h3 {
     color: #fff;
@@ -346,6 +339,61 @@
     padding: 60px 20px;
     grid-column: 1 / -1;
   }
+
+  /* Carrusel */
+  .carousel-wrap {
+    position: relative;
+    cursor: pointer;
+  }
+  .carousel-track {
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    background: #000;
+  }
+  .carousel-track::-webkit-scrollbar {
+    display: none;
+  }
+  .carousel-track img {
+    flex: 0 0 100%;
+    scroll-snap-align: start;
+    width: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .carousel-track.card-height,
+  .carousel-track.card-height img {
+    height: 220px;
+  }
+  .carousel-track.modal-height,
+  .carousel-track.modal-height img {
+    height: 280px;
+  }
+  .carousel-dots {
+    position: absolute;
+    bottom: 8px;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+    pointer-events: none;
+  }
+  .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.4);
+    transition: all 0.2s;
+  }
+  .dot.active {
+    background: var(--dorado);
+    width: 8px;
+    height: 8px;
+  }
+
   .modal-overlay {
     display: none;
     position: fixed;
@@ -382,11 +430,6 @@
     font-size: 1.1em;
     cursor: pointer;
     z-index: 5;
-  }
-  .modal img {
-    width: 100%;
-    height: 280px;
-    object-fit: cover;
   }
   .modal-body {
     padding: 20px;
@@ -530,7 +573,7 @@
 <div class="modal-overlay" id="modalOverlay">
   <div class="modal">
     <button class="modal-cerrar" onclick="cerrarModal()">✕</button>
-    <img id="modalImg" src="" alt="">
+    <div id="modalCarouselContainer"></div>
     <div class="modal-body">
       <div class="categoria" id="modalCategoria"></div>
       <h2 id="modalNombre"></h2>
@@ -651,6 +694,31 @@
     renderGrid();
   }
 
+  function construirCarrusel(imagenes, prefix, id, claseAltura) {
+    if (!imagenes || imagenes.length === 0) {
+      return `<div class="carousel-track ${claseAltura}"></div>`;
+    }
+    const imgsHtml = imagenes.map(url => `<img src="${url}" onerror="this.style.opacity=0">`).join("");
+    const dotsHtml = imagenes.length > 1
+      ? `<div class="carousel-dots" id="${prefix}-dots-${id}">${imagenes.map((_, i) => `<span class="dot${i === 0 ? ' active' : ''}"></span>`).join("")}</div>`
+      : "";
+    return `
+      <div class="carousel-track ${claseAltura}" id="${prefix}-track-${id}" onscroll="actualizarDots('${prefix}', '${id}')">
+        ${imgsHtml}
+      </div>
+      ${dotsHtml}
+    `;
+  }
+
+  function actualizarDots(prefix, id) {
+    const track = document.getElementById(`${prefix}-track-${id}`);
+    const dotsCont = document.getElementById(`${prefix}-dots-${id}`);
+    if (!track || !dotsCont || track.clientWidth === 0) return;
+    const index = Math.round(track.scrollLeft / track.clientWidth);
+    const dots = dotsCont.querySelectorAll(".dot");
+    dots.forEach((d, i) => d.classList.toggle("active", i === index));
+  }
+
   function renderGrid() {
     const grid = document.getElementById("grid");
     const busqueda = document.getElementById("buscador").value.toLowerCase();
@@ -666,9 +734,11 @@
     }
 
     grid.innerHTML = filtrados.map(p => `
-      <div class="card" onclick='abrirModal(${JSON.stringify(p).replace(/'/g, "&#39;")})'>
-        <img src="${p.imagenes[0] || ''}" alt="${p.nombre}" onerror="this.style.opacity=0">
-        <div class="card-info">
+      <div class="card">
+        <div class="carousel-wrap" onclick='abrirModal(${JSON.stringify(p).replace(/'/g, "&#39;")})'>
+          ${construirCarrusel(p.imagenes, 'card', p.id, 'card-height')}
+        </div>
+        <div class="card-info" onclick='abrirModal(${JSON.stringify(p).replace(/'/g, "&#39;")})'>
           <div class="categoria">${p.categoria}</div>
           <h3>${p.nombre}</h3>
           <div class="precio">£${p.precio.toFixed(2)}</div>
@@ -681,7 +751,7 @@
     productoModal = p;
     cantidadModal = 1;
     document.getElementById("modalCantidad").textContent = cantidadModal;
-    document.getElementById("modalImg").src = p.imagenes[0] || "";
+    document.getElementById("modalCarouselContainer").innerHTML = construirCarrusel(p.imagenes, 'modal', 'main', 'modal-height');
     document.getElementById("modalCategoria").textContent = p.categoria;
     document.getElementById("modalNombre").textContent = p.nombre;
     document.getElementById("modalDescripcion").textContent = p.descripcion;
